@@ -25,6 +25,11 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.env
+.venv312
+dataset_raw/
+dataset/
+model_loader/
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
