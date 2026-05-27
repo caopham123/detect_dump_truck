@@ -26,10 +26,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 .env
-.venv312
+training/dataset/
+training/dataset_raw/
+training/runs/
 dataset_raw/
-dataset/
 model_loader/
+
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
