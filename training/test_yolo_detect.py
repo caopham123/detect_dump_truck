@@ -103,7 +103,7 @@ def test_video_frames(video_path, SKIP_FRAMES=10, CONF=0.7):
     if frame_count % SKIP_FRAMES != 0:
       continue
     frame_resized = cv2.resize(frame, (960, 600))       # resize current frame and process
-    cv2.rectangle(frame_resized, (ROI_X_MIN, ROI_Y_MIN), (ROI_X_MAX, ROI_Y_MAX), (232, 152, 81), 1)
+    cv2.rectangle(frame_resized, (ROI_X_MIN, ROI_Y_MIN), (ROI_X_MAX, ROI_Y_MAX), (81, 152, 232), 2)
 
     results = model_detect.track(frame_resized, persist=True, conf=CONF, verbose=False)
     is_detected = False
