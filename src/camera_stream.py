@@ -1,8 +1,6 @@
 import cv2, threading, time
 from datetime import datetime
 
-
-
 class CameraStream:
   def __init__(self, camera_id, rtsp_url):
     self.camera_id = camera_id

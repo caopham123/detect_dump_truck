@@ -18,9 +18,10 @@ CONF_THRESHOLD = 0.5
 DISPLAY_SKIP = 5
 PROCESS_SKIP = 10
 VOTE_COUNT = 5
-INFERENCE_RESIZE = tuple(map(int, os.getenv('INFERENCE_RESIZE', '640,480').split(',')))
+VOTE_THRESHOLD = int(VOTE_COUNT * 0.75)  # Default threshold for majority vote (75% of VOTE_COUNT)
+INFERENCE_RESIZE = (640, 480)  # Resize frames to this size for inference to balance speed and accuracy
 CAMERAS = []
-LOG_FILES = BASE_DIR / "logs" / f"log_{datetime.now().strftime('%Y_%m_%d_log')}.txt"
+LOG_FILES = BASE_DIR / "logs" / f"log_{datetime.now().strftime('%Y_%m_%d')}"
 
 # Setup color and label for classes
 CLASS_COLORS = {

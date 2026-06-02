@@ -1,12 +1,13 @@
 ''' Tracker with Voting '''
 
-from collections import defaultdict, deque
 import logging, os
+from datetime import datetime
+from collections import defaultdict, deque
 from config.settings import VOTE_COUNT, VOTE_THRESHOLD, LOG_FILES
 
 os.makedirs(LOG_FILES, exist_ok=True)   # Ensure the logs directory exists
 logging.basicConfig(
-  filename=LOG_FILES,     # Save logs to a file with timestamp in the name
+  filename=LOG_FILES / f"log_{datetime.now().strftime('%Y_%m_%d')}.txt",     # Save logs to a file with timestamp in the name
   level=logging.INFO,     # Log INFO and above (including ERROR) to the file
   format="%(asctime)s | [%(levelname)s] | %(message)s",
   datefmt="%Y-%m-%d %H:%M:%S"
@@ -28,7 +29,7 @@ class TrackerVoting:
     ''' Add a new class prediction for a given track ID. '''
     self.track_history[track_id].append(class_id)   # Add the new class prediction to the history of the track ID
     
-  def check_alert(self, track_id):
+  def check_alert(self, track_id, camera_id):
     ''' Check if the track ID has enough votes to trigger an alert for "truck_raised". '''
     votes = self.track_history[track_id]  # Get the history of class predictions for the track ID
     if len(votes) < VOTE_COUNT:
@@ -36,7 +37,7 @@ class TrackerVoting:
     
     truck_raised_count = votes.count(0)  # Count how many times the class "truck_raised" (class_id=0) was predicted
     if truck_raised_count >= VOTE_THRESHOLD and track_id not in self.alerted_ids:
-      msg = f"ALERT: Track ID {track_id} | 'CHUA HA' | {truck_raised_count}/{VOTE_COUNT} votes."
+      msg = f"ALERT: CAMERA {camera_id} | Track ID {track_id} | 'CHUA HA' | Rate: {truck_raised_count}/{VOTE_COUNT} votes."
       print(msg)
       logging.warning(msg)
       self.alerted_ids.add(track_id)
