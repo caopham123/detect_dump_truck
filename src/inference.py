@@ -1,9 +1,10 @@
-import cv2
+import cv2, os
 import numpy as np
-from datetime import datetime
-from config.settings import INFERENCE_RESIZE, CLASS_COLORS, CLASS_LABELS, DISPLAY_SKIP, PROCESS_SKIP, LOG_FILES, CONF_THRESHOLD
+from datetime import datetime,date
+from config.settings import DISPLAY_RESIZE, CLASS_COLORS, CLASS_LABELS, DISPLAY_SKIP, PROCESS_SKIP, CONF_THRESHOLD, SNAPSHOT_DIR
 from src.tracker_voting import TrackerVoting
 from src.camera_stream import CameraStream
+from utils.logger import logger
 
 class Inference:
   def __init__(self, cameras, model_instance):
@@ -20,15 +21,60 @@ class Inference:
     self.frame_count = 0  # Counter to keep track of the number of frames processed
     self.latest_tracks = []  # Store the latest tracks detected in the current frame
     
+    # Draw polygon on window
+    self.window_name = f'Camera {self.camera_id} - Tracking'
+    cv2.namedWindow(self.window_name)
+    self.dragging_point_idx = -1
+    cv2.setMouseCallback(self.window_name, self.mouse_callback)
+
+    # Setup snapshot
+    self.last_snapshot_time = 0
+    self.snapshot_cooldown = 2 # seconds
+    os.makedirs(SNAPSHOT_DIR, exist_ok=True)   # Ensure the logs directory exists
+
+    self.formatDate = ''
+    self.formatTime = ''
+    self.formatDateTime = ''
+
+  def get_date_time(self):
+    self.now = datetime.now()
+    self.formatDate = self.now.strftime('%Y-%m-%d')
+    self.formatTime = self.now.strftime('%H:%M:%S')
+    self.formatDateTime = self.now.strftime('%Y-%m-%d %H:%M:%S')  
+
+  def mouse_callback(self, event, x, y, flags, param):
+    ''' Handle mouse events to drag and drop ROI polygon points '''
+    if self.roi_polygon is None: return
+        
+    if event == cv2.EVENT_LBUTTONDOWN:
+      # Find if clicked near any point
+      for i, point in enumerate(self.roi_polygon):
+        px, py = point[0]
+        if abs(px - x) < 15 and abs(py - y) < 15:  # 15px threshold
+          self.dragging_point_idx = i
+          break
+                
+    elif event == cv2.EVENT_MOUSEMOVE:
+      # Update point if dragging
+      if self.dragging_point_idx != -1:
+        self.roi_polygon[self.dragging_point_idx][0] = [x, y]
+            
+    elif event == cv2.EVENT_LBUTTONUP:
+      # Stop dragging and print the new coordinates
+      if self.dragging_point_idx != -1:
+        logger.info(f"{self.camera_id} - New ROI Polygon points updated! Copy this to constants.yaml:")
+        logger.info(f"roi_polygon: {self.roi_polygon.reshape(-1, 2).tolist()}")
+        self.dragging_point_idx = -1
+    
   def process_frame(self):
     ''' Read a frame from the camera stream, run inference, update tracker voting, 
     and return the processed frame with detections and alerts. '''
     ret, frame = self.reader.read()       # Get the latest frame written from the camera stream
     if ret is False or frame is None:
-      print(f"[WARNING] {self.camera_id} - No frame received from camera stream.")
+      logger.warning(f"{self.camera_id} - No frame received from camera stream.")
       return None
     self.frame_count += 1
-    frame_resized = cv2.resize(frame, INFERENCE_RESIZE)
+    frame_resized = cv2.resize(frame, DISPLAY_RESIZE)
     
     ''' 1. Processevery PROCESS_SKIP frames and run inference to reduce load and focus on key moments. '''
     if self.frame_count % PROCESS_SKIP == 0:
@@ -70,7 +116,12 @@ class Inference:
         
     ''' 2. Display the video every DISPLAY_SKIP frames with bounding boxes, labels, and alerts. '''
     if self.frame_count % DISPLAY_SKIP == 0:
-      cv2.polylines(frame_resized, [self.roi_polygon], isClosed=True, color=(81, 152, 232), thickness=2) if self.roi_polygon is not None else None
+      if self.roi_polygon is not None:
+        cv2.polylines(frame_resized, [self.roi_polygon], isClosed=True, color=(81, 152, 232), thickness=2)
+        # Draw circles at polygon vertices for drag-and-drop visibility
+        for point in self.roi_polygon:
+          cv2.circle(frame_resized, tuple(point[0]), 5, (0, 0, 255), -1)
+      
       # Draw bounding boxes, labels and alerts from the latest tracks
       for track in self.latest_tracks:
         tx1, ty1, tx2, ty2 = track['bbox']
@@ -81,13 +132,18 @@ class Inference:
         label = f"Track: {track_id} | {class_name} {conf:.0%}"
         
         if track['alert_triggered']:
-          cv2.putText(frame_resized, "CANH BAO: CHUA NANG THUNG", (tx1, max(15, ty1 - 35)),
+          cv2.putText(frame_resized, "CANH BAO: CHUA HA THUNG", (tx1, max(15, ty1 - 35)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-          
-        cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
-        cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+          # Fix filename colons and only save snapshot on alert
+          snapshot_path = f"{SNAPSHOT_DIR}/{date.today().strftime('%Y-%m-%d')}_{datetime.now().strftime('%H-%M-%S')}.jpg"
+          cv2.imwrite(snapshot_path, frame_resized)
+          logger.info(f"Saved violation snapshot to {snapshot_path}")
+
+        if track['class_id'] == 0:  
+          cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
+          cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
-      cv2.imshow(f'Camera {self.camera_id} - Tracking', frame_resized)
+      cv2.imshow(self.window_name, frame_resized)
   
   def close(self):
     ''' Stop the camera stream and release resources. '''

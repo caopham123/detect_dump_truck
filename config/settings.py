@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import os
 import yaml
 from pathlib import Path
-from datetime import datetime
 
 load_dotenv()
 
@@ -19,9 +18,10 @@ DISPLAY_SKIP = 5
 PROCESS_SKIP = 10
 VOTE_COUNT = 5
 VOTE_THRESHOLD = int(VOTE_COUNT * 0.75)  # Default threshold for majority vote (75% of VOTE_COUNT)
-INFERENCE_RESIZE = (640, 480)  # Resize frames to this size for inference to balance speed and accuracy
+DISPLAY_RESIZE = (640, 500)
 CAMERAS = []
-LOG_FILES = BASE_DIR / "logs" / f"log_{datetime.now().strftime('%Y_%m_%d')}"
+LOG_DIR = BASE_DIR / "logs"
+SNAPSHOT_DIR = BASE_DIR / "snapshots"
 
 # Setup color and label for classes
 CLASS_COLORS = {
@@ -36,7 +36,7 @@ CLASS_LABELS = {
 # READ YAML CONFIG
 if YAML_PATH.exists():
   try:
-    with open(YAML_PATH, 'r') as f:
+    with open(YAML_PATH, 'r', encoding='utf-8') as f:
       content = yaml.safe_load(f)
       
       if 'model' in content:        # Read the 'model' key in YAML
@@ -64,5 +64,5 @@ if YAML_PATH.exists():
       if 'cameras' in content:     # Read the 'cameras' list in YAML
         CAMERAS = content.get('cameras', [])
   except Exception as e:
-    print(f"[WARNING] Error reading YAML config in {YAML_PATH}: {e}. Using defaults from .env and hardcoded values.")
+    print(f"[WARNING] Error reading YAML config in {YAML_PATH}:\n{e}. \nUsing defaults from .env or hardcoded values.")
 else: print(f"[WARNING] YAML config file not found at {YAML_PATH}. Using defaults from .env and hardcoded values.")
