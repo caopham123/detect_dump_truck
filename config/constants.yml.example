@@ -1,0 +1,34 @@
+# Load model
+model:
+  path: "model_loader/your_model.pt"
+  confidence: 0.5
+
+# Frame skip
+processing:
+  skip_frame: 5
+  display_skip: 5           # Hiển thị mỗi 5 frame
+  process_skip: 10          # Xử lý AI mỗi 10 frame (SKIP_FRAME * 2)
+
+# Majority voting
+voting:
+  count: 5                  # VOTE_COUNT
+  threshold: 3              # >= 3/5 là class 1 (truck_lowered) thì cảnh báo
+
+# Nhãn phân loại nhận diện
+class_labels:
+  0: "truck_raised"
+  1: "truck_lowered"
+
+# Mã màu dạng RGB (Sẽ được settings.py tự động đổi sang BGR của OpenCV)
+class_colors:
+  0: [0, 255, 0]            # Xanh lá
+  1: [255, 0, 0]            # Đỏ (RGB)
+
+cameras:
+  - camera_id: cam_01
+    rtsp_url: "rtsp://USER:PASSWORD@IP_ADDRESS:PORT/path"
+    roi_polygon:
+      - [100, 200]
+      - [500, 200]
+      - [700, 550]
+      - [50, 550]
