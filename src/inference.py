@@ -1,15 +1,27 @@
 import cv2, os
 import numpy as np
 from datetime import datetime,date
-from config.settings import DISPLAY_RESIZE, CLASS_COLORS, CLASS_LABELS, DISPLAY_SKIP, PROCESS_SKIP, CONF_THRESHOLD, SNAPSHOT_DIR
+from config.settings import DISPLAY_RESIZE, CLASS_COLORS, CLASS_LABELS, DISPLAY_SKIP, PROCESS_SKIP, CONF_THRESHOLD, SNAPSHOT_DIR, TRACK_BUFFER
 from src.tracker_voting import TrackerVoting
 from src.camera_stream import CameraStream
 from utils.logger import logger
 
 class Inference:
-  def __init__(self, cameras, model_instance):
+  def __init__(self, cameras, model_instance, conf):
     self.camera_id = cameras.get('camera_id', 'unknown')
     self.rtsp_url = cameras.get('rtsp_url', 'unknown')
+    self.confidence = conf
+
+    # Create tracker config file to sync TRACK_BUFFER
+    self.tracker_yaml_path = "config/custom_tracker.yaml"
+    with open(self.tracker_yaml_path, "w", encoding="utf-8") as f:
+      f.write("tracker_type: bytetrack\n")
+      f.write("track_high_thresh: 0.5\n")
+      f.write("track_low_thresh: 0.2\n")
+      f.write("new_track_thresh: 0.5\n")
+      f.write("match_thresh: 0.7\n")
+      f.write("fuse_score: True\n")
+      f.write(f"track_buffer: {TRACK_BUFFER}\n")
 
     # Convert ROI from YAML config to a Numpy array of points for cv2.polylines
     roi_points = cameras.get('roi_polygon', [])
@@ -78,7 +90,7 @@ class Inference:
     
     ''' 1. Processevery PROCESS_SKIP frames and run inference to reduce load and focus on key moments. '''
     if self.frame_count % PROCESS_SKIP == 0:
-      results = self.model.track(frame_resized, persist=True, conf=CONF_THRESHOLD, verbose=False)  # Run tracking on the resized frame
+      results = self.model.track(frame_resized, persist=True, conf=self.confidence, tracker=self.tracker_yaml_path, verbose=False)  # Run tracking on the resized frame
       self.latest_tracks = []
       available_track_ids = []
       
@@ -132,16 +144,21 @@ class Inference:
         label = f"Track: {track_id} | {class_name} {conf:.0%}"
         
         if track['alert_triggered']:
+          cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
           cv2.putText(frame_resized, "CANH BAO: CHUA HA THUNG", (tx1, max(15, ty1 - 35)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
           # Fix filename colons and only save snapshot on alert
-          snapshot_path = f"{SNAPSHOT_DIR}/{date.today().strftime('%Y-%m-%d')}_{datetime.now().strftime('%H-%M-%S')}.jpg"
+          image_folder = os.path.join(SNAPSHOT_DIR, date.today().strftime('%Y-%m-%d'))
+          if not os.path.exists(image_folder): 
+            os.makedirs(image_folder)
+          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.jpg")
           cv2.imwrite(snapshot_path, frame_resized)
           logger.info(f"Saved violation snapshot to {snapshot_path}")
+          track['alert_triggered'] = False  # Tránh lưu ảnh 2 lần do DISPLAY_SKIP < PROCESS_SKIP
 
-        if track['class_id'] == 0:  
-          cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
-          cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        # if track['class_id'] == 0:
+        cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
+        cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
       cv2.imshow(self.window_name, frame_resized)
   

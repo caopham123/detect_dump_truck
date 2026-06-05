@@ -5,6 +5,7 @@ from utils.daily_file_handle import DailyFileHandler
 # Create a custom logger
 logger = logging.getLogger("dump_truck_detector")
 logger.setLevel(logging.INFO) # Record INFO and above (including ERROR)
+logger.propagate = False  # Prevent log duplication when YOLO configures root logger
 
 # 1. Console handler
 c_handler = logging.StreamHandler(sys.stdout)

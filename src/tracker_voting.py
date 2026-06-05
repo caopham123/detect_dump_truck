@@ -1,10 +1,8 @@
 import os
 from datetime import datetime
 from collections import defaultdict, deque
-from config.settings import VOTE_COUNT, VOTE_THRESHOLD, LOG_DIR
+from config.settings import VOTE_COUNT, VOTE_THRESHOLD, LOG_DIR, TRACK_BUFFER
 from utils.logger import logger
-
-MAX_MISSING_FRAME = 30
 
 class TrackerVoting:
   def __init__(self):
@@ -50,7 +48,7 @@ class TrackerVoting:
     unavailable_ids = set(self.track_history.keys()) - set(available_ids)  # Find track IDs that are still not available
     for track_id in unavailable_ids:
       self.missing_tracks[track_id] += 1  # Increment the missing counter if the track is not detected
-      if self.missing_tracks[track_id] >= MAX_MISSING_FRAME:  # If the track has been missing for too long
+      if self.missing_tracks[track_id] >= TRACK_BUFFER:  # If the track has been missing for too long
         del self.track_history[track_id]  # Remove the history of the unavailable track ID
         if track_id in self.alerted_ids:
           self.alerted_ids.discard(track_id)  # Remove from alerted IDs if it was previously alerted

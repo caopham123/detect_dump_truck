@@ -46,6 +46,7 @@ if YAML_PATH.exists():
       if 'processing' in content:   # Read the 'processing' key in YAML
         DISPLAY_SKIP = content['processing'].get('display_skip', DISPLAY_SKIP)
         PROCESS_SKIP = content['processing'].get('process_skip', PROCESS_SKIP)
+        TRACK_BUFFER = content['processing'].get('track_buffer', 90)
       
       if 'voting' in content:      # Read the 'voting' key in YAML
         VOTE_COUNT = content['voting'].get('vote_count', VOTE_COUNT)
