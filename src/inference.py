@@ -5,6 +5,7 @@ from config.settings import DISPLAY_RESIZE, CLASS_COLORS, CLASS_LABELS, DISPLAY_
 from src.tracker_voting import TrackerVoting
 from src.camera_stream import CameraStream
 from utils.logger import logger
+from ultralytics.trackers.basetrack import BaseTrack
 
 class Inference:
   def __init__(self, cameras, model_instance, conf):
@@ -125,6 +126,11 @@ class Inference:
         
         # Remove track IDs that are no longer available on screen to prevent memory leak and reuse track IDs for new trucks
         self.tracker_voting.remove_unavailable_tracks(available_track_ids)
+        
+        # Reset YOLO's internal track ID counter when the screen is completely empty
+        # This prevents the ID number from reaching 10000+ over long running times
+        if not available_track_ids and len(self.tracker_voting.track_history) == 0:
+          BaseTrack.reset_id()
         
     ''' 2. Display the video every DISPLAY_SKIP frames with bounding boxes, labels, and alerts. '''
     if self.frame_count % DISPLAY_SKIP == 0:

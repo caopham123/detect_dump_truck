@@ -50,5 +50,6 @@ class TrackerVoting:
       self.missing_tracks[track_id] += 1  # Increment the missing counter if the track is not detected
       if self.missing_tracks[track_id] >= TRACK_BUFFER:  # If the track has been missing for too long
         del self.track_history[track_id]  # Remove the history of the unavailable track ID
+        del self.missing_tracks[track_id] # Remove from buffer to release RAM
         if track_id in self.alerted_ids:
           self.alerted_ids.discard(track_id)  # Remove from alerted IDs if it was previously alerted
