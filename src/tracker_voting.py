@@ -17,13 +17,17 @@ class TrackerVoting:
     self.alerted_ids = set()  # Set to track which IDs have already triggered an alert
     self.missing_tracks = defaultdict(int)  # Count the number of missing frames for each track ID
     
+    # State tracking for business logic of Counting trucks dumping materials
+    self.is_dumping = defaultdict(bool)
+    self.has_been_counted = defaultdict(bool)
+    self.total_dumps = 0
+    
   def add_vote(self, track_id, class_id):
     ''' Add a new class prediction for a given track ID. '''
     self.track_history[track_id].append(class_id)
     # Clear the missing counter if the track is detected
     if track_id in self.missing_tracks:
       self.missing_tracks[track_id] = 0
-
 
   def check_alert(self, track_id, camera_id):
     ''' Check if the track ID has enough votes to trigger an alert for "truck_raised". '''
@@ -39,6 +43,32 @@ class TrackerVoting:
       self.alerted_ids.add(track_id)
       return True
     return False
+
+  def update_dump_status(self, track_id):
+    ''' Update the dump counting logic based on current votes '''
+    votes = self.track_history[track_id]
+    if len(votes) < VOTE_COUNT:
+      return None
+        
+    truck_raised_count = votes.count(0)
+    truck_lowered_count = votes.count(1)
+    
+    # Trigger: If the truck raised state -> start dumping cycle
+    if truck_raised_count >= VOTE_THRESHOLD:
+      if not self.is_dumping[track_id] and not self.has_been_counted[track_id]:
+        self.is_dumping[track_id] = True
+        return "started_dumping"
+            
+    # Đếm: Nếu xe hạ thùng ổn định SAU KHI đã nâng thùng
+    elif truck_lowered_count >= VOTE_THRESHOLD:
+      if self.is_dumping[track_id] and not self.has_been_counted[track_id]:
+        self.is_dumping[track_id] = False
+        self.has_been_counted[track_id] = True
+        self.total_dumps += 1
+        msg = f"COUNT: Track ID {track_id} completed dumping. Total dumps: {self.total_dumps}"
+        logger.info(msg)
+        return "completed_dumping"
+    return None
   
   def remove_unavailable_tracks(self, available_ids):
     ''' Remove track IDs that are no longer available on screen.
@@ -49,7 +79,18 @@ class TrackerVoting:
     for track_id in unavailable_ids:
       self.missing_tracks[track_id] += 1  # Increment the missing counter if the track is not detected
       if self.missing_tracks[track_id] >= TRACK_BUFFER:  # If the track has been missing for too long
+        # Handle counting if the truck disappears from the ROI while dumping
+        if self.is_dumping[track_id] and not self.has_been_counted[track_id]:
+          self.total_dumps += 1
+          self.has_been_counted[track_id] = True
+          msg = f"COUNT: Track ID {track_id} left ROI while dumping. Total dumps: {self.total_dumps}"
+          logger.info(msg)
+          
         del self.track_history[track_id]  # Remove the history of the unavailable track ID
         del self.missing_tracks[track_id] # Remove from buffer to release RAM
         if track_id in self.alerted_ids:
           self.alerted_ids.discard(track_id)  # Remove from alerted IDs if it was previously alerted
+        if track_id in self.is_dumping:
+          del self.is_dumping[track_id]
+        if track_id in self.has_been_counted:
+          del self.has_been_counted[track_id]

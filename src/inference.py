@@ -35,7 +35,7 @@ class Inference:
     self.latest_tracks = []  # Store the latest tracks detected in the current frame
     
     # Draw polygon on window
-    self.window_name = f'Camera {self.camera_id} - Tracking'
+    self.window_name = f'Camera {self.camera_id} - Counting'
     cv2.namedWindow(self.window_name)
     self.dragging_point_idx = -1
     cv2.setMouseCallback(self.window_name, self.mouse_callback)
@@ -88,6 +88,7 @@ class Inference:
       return None
     self.frame_count += 1
     frame_resized = cv2.resize(frame, DISPLAY_RESIZE)
+    h, w, _ = frame_resized.shape
     
     ''' 1. Processevery PROCESS_SKIP frames and run inference to reduce load and focus on key moments. '''
     if self.frame_count % PROCESS_SKIP == 0:
@@ -106,14 +107,18 @@ class Inference:
           track_id = int(box.id[0].item()) if box.id is not None else None  # Get the track ID for the detected object
           
           if track_id is None: continue
-          available_track_ids.append(track_id)  # Add the track ID to the list of available track IDs
           
           ''' Check if the center of the bounding box is within the defined ROI polygon. '''
           in_roi = cv2.pointPolygonTest(self.roi_polygon, (x_center, y_center), False) >= 0 if self.roi_polygon is not None else False
+          
           if in_roi: 
+            available_track_ids.append(track_id)  # Only track voting for objects IN the ROI
             self.tracker_voting.add_vote(track_id, class_id)  # Add the class prediction to the tracker voting system
             alert_triggered = self.tracker_voting.check_alert(track_id, self.camera_id)  # Check if an alert should be triggered for this track ID
-          else: alert_triggered = False
+            dump_status = self.tracker_voting.update_dump_status(track_id)
+          else: 
+            alert_triggered = False
+            dump_status = None
           
           self.latest_tracks.append({   # Store the latest track information
             'track_id': track_id,
@@ -121,7 +126,8 @@ class Inference:
             'conf': conf,
             'bbox': (x1, y1, x2, y2),
             'in_roi': in_roi,
-            'alert_triggered': alert_triggered
+            'alert_triggered': alert_triggered,
+            'dump_status': dump_status
           })
         
         # Remove track IDs that are no longer available on screen to prevent memory leak and reuse track IDs for new trucks
@@ -140,6 +146,10 @@ class Inference:
         for point in self.roi_polygon:
           cv2.circle(frame_resized, tuple(point[0]), 5, (0, 0, 255), -1)
       
+      # Show total dumps on screen
+      total_dumps = self.tracker_voting.total_dumps
+      cv2.putText(frame_resized, f"Total Dumps: {total_dumps}", (20, h-30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+
       # Draw bounding boxes, labels and alerts from the latest tracks
       for track in self.latest_tracks:
         tx1, ty1, tx2, ty2 = track['bbox']
@@ -150,19 +160,28 @@ class Inference:
         label = f"Track: {track_id} | {class_name} {conf:.0%}"
         
         if track['alert_triggered']:
-          cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
+          # cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
           cv2.putText(frame_resized, "CANH BAO: CHUA HA THUNG", (tx1, max(15, ty1 - 35)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-          # Fix filename colons and only save snapshot on alert
-          image_folder = os.path.join(SNAPSHOT_DIR, date.today().strftime('%Y-%m-%d'))
+          # Save snapshot after each detected object
+          image_folder = os.path.join(SNAPSHOT_DIR, 'detections', date.today().strftime('%Y-%m-%d'))
           if not os.path.exists(image_folder): 
             os.makedirs(image_folder)
-          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.jpg")
+          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_alert.jpg")
           cv2.imwrite(snapshot_path, frame_resized)
           logger.info(f"Saved violation snapshot to {snapshot_path}")
           track['alert_triggered'] = False  # Tránh lưu ảnh 2 lần do DISPLAY_SKIP < PROCESS_SKIP
 
-        # if track['class_id'] == 0:
+        # 
+        if track.get('dump_status') == 'started_dumping':
+          image_folder = os.path.join(SNAPSHOT_DIR, 'dumps', date.today().strftime('%Y-%m-%d'))
+          if not os.path.exists(image_folder): 
+            os.makedirs(image_folder)
+          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%H-%M-%S')}_dumping.jpg")
+          cv2.imwrite(snapshot_path, frame_resized)
+          logger.info(f"Saved dumping snapshot for Track ID {track_id} to {snapshot_path}")
+          track['dump_status'] = None # Tránh lưu nhiều lần
+
         cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
         cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
