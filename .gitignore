@@ -26,7 +26,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 .env
-config/constants.yaml
+logs/
+snapshots/
+config/*.yaml
 training/dataset/
 training/dataset_raw/
 training/runs/
