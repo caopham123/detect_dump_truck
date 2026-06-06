@@ -16,7 +16,7 @@ CONF_THRESHOLD = 0.5
 # RTSP stream
 DISPLAY_SKIP = 5
 PROCESS_SKIP = 10
-VOTE_COUNT = 5
+VOTE_COUNT = 7
 VOTE_THRESHOLD = int(VOTE_COUNT * 0.75)  # Default threshold for majority vote (75% of VOTE_COUNT)
 DISPLAY_RESIZE = (640, 500)
 CAMERAS = []

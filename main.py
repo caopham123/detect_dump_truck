@@ -1,12 +1,13 @@
 # main.py
 import cv2
 from ultralytics import YOLO
-from config.settings import MODEL_PATH, CAMERAS
+from config.settings import MODEL_PATH, CAMERAS, CONF_THRESHOLD
 from src.inference import Inference
 from utils.logger import logger
 
 def main():
-  logger.info("Khởi động hệ thống phát hiện xe chưa nâng thùng...")
+  logger.info("=" * 50)
+  logger.info("==== Khởi động hệ thống phát hiện xe chưa nâng thùng ====")
   logger.info("Đang nạp mô hình YOLOv8 vào bộ nhớ...")
   
   # Nạp mô hình một lần để phân phối cho các tiến trình con
@@ -22,7 +23,7 @@ def main():
   for cam_config in CAMERAS:
     cam_id = cam_config.get("camera_id", "Unknown")
     logger.info(f"Đang khởi tạo luồng xử lý: {cam_id}")
-    pipeline = Inference(cam_config, model)
+    pipeline = Inference(cam_config, model, conf=CONF_THRESHOLD)
     pipelines.append(pipeline)
       
   logger.info("Hệ thống đã sẵn sàng xử lý. Nhấn phím 'ESC' tại cửa sổ để dừng chương trình.")
