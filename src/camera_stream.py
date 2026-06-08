@@ -28,7 +28,9 @@ class CameraStream:
       ret, frame = self.cap.read()
       if not ret:
         print(f"[ERROR] {datetime.now().strftime('%Y-%m-%d_%H:%M:%S')} Camera {self.camera_id} stream ended or cannot be read.")
-        self.cap.open(self.rtsp_url)         # Reopen the stream if it cannot read frames
+        if self.cap.isOpened():
+          self.cap.release()
+        self.cap = cv2.VideoCapture(self.rtsp_url)         # Reopen the stream if it cannot read frames
         time.sleep(5)                       # Wait 5s before retrying to avoid busy loop
         continue
       with self.read_lock:
@@ -46,5 +48,8 @@ class CameraStream:
   def stop(self):
     ''' Stop the camera stream and release resources. '''
     self.started = False
+    # Cho phép background thread tự gọi release() để tránh lỗi thread safety của OpenCV
+    if hasattr(self, 'thread') and self.thread.is_alive():
+      self.thread.join()
     if self.cap.isOpened():
       self.cap.release()
