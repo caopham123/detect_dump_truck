@@ -13,8 +13,8 @@ class Inference:
     self.rtsp_url = cameras.get('rtsp_url', 'unknown')
     self.confidence = conf
 
-    # Create tracker config file to sync TRACK_BUFFER
-    self.tracker_yaml_path = "config/custom_tracker.yaml"
+    # Create tracker config file to sync TRACK_BUFFER (riêng biệt cho từng camera)
+    self.tracker_yaml_path = f"config/custom_tracker_{self.camera_id}.yaml"
     with open(self.tracker_yaml_path, "w", encoding="utf-8") as f:
       f.write("tracker_type: bytetrack\n")
       f.write("track_high_thresh: 0.5\n")
@@ -24,9 +24,13 @@ class Inference:
       f.write("fuse_score: True\n")
       f.write(f"track_buffer: {TRACK_BUFFER}\n")
 
-    # Convert ROI from YAML config to a Numpy array of points for cv2.polylines
-    roi_points = cameras.get('roi_polygon', [])
-    self.roi_polygon = np.array(roi_points, dtype=np.int32).reshape((-1, 1, 2)) if roi_points else None
+    # Convert ROIs from YAML config to Numpy arrays of points
+    self.roi_polygons = []
+    if 'roi_polygons' in cameras:
+      for poly in cameras['roi_polygons']:
+        self.roi_polygons.append(np.array(poly, dtype=np.int32).reshape((-1, 1, 2)))
+    elif 'roi_polygon' in cameras: # Fallback to old format
+      self.roi_polygons.append(np.array(cameras['roi_polygon'], dtype=np.int32).reshape((-1, 1, 2)))
     
     self.reader = CameraStream(self.camera_id, self.rtsp_url).start()  # Start the camera stream in a separate thread
     self.model = model_instance  # Load the YOLO model instance
@@ -37,7 +41,7 @@ class Inference:
     # Draw polygon on window
     self.window_name = f'Camera {self.camera_id} - Counting'
     cv2.namedWindow(self.window_name)
-    self.dragging_point_idx = -1
+    self.dragging_point = None # Stores (polygon_index, point_index)
     cv2.setMouseCallback(self.window_name, self.mouse_callback)
 
     # Setup snapshot
@@ -57,27 +61,31 @@ class Inference:
 
   def mouse_callback(self, event, x, y, flags, param):
     ''' Handle mouse events to drag and drop ROI polygon points '''
-    if self.roi_polygon is None: return
+    if not self.roi_polygons: return
         
     if event == cv2.EVENT_LBUTTONDOWN:
-      # Find if clicked near any point
-      for i, point in enumerate(self.roi_polygon):
-        px, py = point[0]
-        if abs(px - x) < 15 and abs(py - y) < 15:  # 15px threshold
-          self.dragging_point_idx = i
-          break
+      # Find if clicked near any point in any polygon
+      for poly_idx, poly in enumerate(self.roi_polygons):
+        for pt_idx, point in enumerate(poly):
+          px, py = point[0]
+          if abs(px - x) < 15 and abs(py - y) < 15:  # 15px threshold
+            self.dragging_point = (poly_idx, pt_idx)
+            return
                 
     elif event == cv2.EVENT_MOUSEMOVE:
       # Update point if dragging
-      if self.dragging_point_idx != -1:
-        self.roi_polygon[self.dragging_point_idx][0] = [x, y]
+      if self.dragging_point is not None:
+        poly_idx, pt_idx = self.dragging_point
+        self.roi_polygons[poly_idx][pt_idx][0] = [x, y]
             
     elif event == cv2.EVENT_LBUTTONUP:
       # Stop dragging and print the new coordinates
-      if self.dragging_point_idx != -1:
-        logger.info(f"{self.camera_id} - New ROI Polygon points updated! Copy this to constants.yaml:")
-        logger.info(f"roi_polygon: {self.roi_polygon.reshape(-1, 2).tolist()}")
-        self.dragging_point_idx = -1
+      if self.dragging_point is not None:
+        logger.info(f"{self.camera_id} - New ROI Polygons updated! Copy this to constants.yaml:")
+        logger.info("roi_polygons:")
+        for poly in self.roi_polygons:
+          logger.info(f"  - {poly.reshape(-1, 2).tolist()}")
+        self.dragging_point = None
     
   def process_frame(self):
     ''' Read a frame from the camera stream, run inference, update tracker voting, 
@@ -85,7 +93,12 @@ class Inference:
     ret, frame = self.reader.read()       # Get the latest frame written from the camera stream
     if ret is False or frame is None:
       logger.warning(f"{self.camera_id} - No frame received from camera stream.")
-      return None
+      return True     # lần đầu ko có frame vẫn tiếp tục
+      
+    # Kiểm tra nếu người dùng bấm dấu X để tắt cửa sổ của camera này
+    if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+      logger.info(f"{self.camera_id} - Cửa sổ đã bị đóng.")
+      return False
     self.frame_count += 1
     frame_resized = cv2.resize(frame, DISPLAY_RESIZE)
     h, w, _ = frame_resized.shape
@@ -108,8 +121,13 @@ class Inference:
           
           if track_id is None: continue
           
-          ''' Check if the center of the bounding box is within the defined ROI polygon. '''
-          in_roi = cv2.pointPolygonTest(self.roi_polygon, (x_center, y_center), False) >= 0 if self.roi_polygon is not None else False
+          ''' Check if the center of the bounding box is within ANY of the defined ROI polygons. '''
+          in_roi = False
+          if self.roi_polygons:
+            for poly in self.roi_polygons:
+              if cv2.pointPolygonTest(poly, (x_center, y_center), False) >= 0:
+                in_roi = True
+                break
           
           if in_roi: 
             available_track_ids.append(track_id)  # Only track voting for objects IN the ROI
@@ -140,11 +158,12 @@ class Inference:
         
     ''' 2. Display the video every DISPLAY_SKIP frames with bounding boxes, labels, and alerts. '''
     if self.frame_count % DISPLAY_SKIP == 0:
-      if self.roi_polygon is not None:
-        cv2.polylines(frame_resized, [self.roi_polygon], isClosed=True, color=(81, 152, 232), thickness=2)
-        # Draw circles at polygon vertices for drag-and-drop visibility
-        for point in self.roi_polygon:
-          cv2.circle(frame_resized, tuple(point[0]), 5, (0, 0, 255), -1)
+      if self.roi_polygons:
+        for poly in self.roi_polygons:
+          cv2.polylines(frame_resized, [poly], isClosed=True, color=(81, 152, 232), thickness=2)
+          # Draw circles at polygon vertices for drag-and-drop visibility
+          for point in poly:
+            cv2.circle(frame_resized, tuple(point[0]), 5, (0, 0, 255), -1)
       
       # Show total dumps on screen
       total_dumps = self.tracker_voting.total_dumps
@@ -167,7 +186,7 @@ class Inference:
           image_folder = os.path.join(SNAPSHOT_DIR, 'detections', date.today().strftime('%Y-%m-%d'))
           if not os.path.exists(image_folder): 
             os.makedirs(image_folder)
-          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_alert.jpg")
+          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%H-%M-%S')}_{self.camera_id}_alert.jpg")
           cv2.imwrite(snapshot_path, frame_resized)
           logger.info(f"Saved violation snapshot to {snapshot_path}")
           track['alert_triggered'] = False  # Tránh lưu ảnh 2 lần do DISPLAY_SKIP < PROCESS_SKIP
@@ -177,7 +196,7 @@ class Inference:
           image_folder = os.path.join(SNAPSHOT_DIR, 'dumps', date.today().strftime('%Y-%m-%d'))
           if not os.path.exists(image_folder): 
             os.makedirs(image_folder)
-          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%H-%M-%S')}_dumping.jpg")
+          snapshot_path = os.path.join(image_folder, f"{datetime.now().strftime('%H-%M-%S')}_{self.camera_id}_dumping.jpg")
           cv2.imwrite(snapshot_path, frame_resized)
           logger.info(f"Saved dumping snapshot for Track ID {track_id} to {snapshot_path}")
           track['dump_status'] = None # Tránh lưu nhiều lần
@@ -186,9 +205,13 @@ class Inference:
         cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
       cv2.imshow(self.window_name, frame_resized)
+    return True
   
   def close(self):
     ''' Stop the camera stream and release resources. '''
     self.reader.stop()
-    cv2.destroyAllWindows()
+    try:
+      cv2.destroyWindow(self.window_name)
+    except cv2.error:
+      pass
           
