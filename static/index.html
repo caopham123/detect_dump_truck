@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dump Truck Monitoring Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <i class="fa-solid fa-truck-monster brand-icon"></i>
+        <h2>TruckVision</h2>
+      </div>
+      <nav class="nav-menu">
+        <a href="#" class="nav-item active"><i class="fa-solid fa-border-all"></i> Dashboard</a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-video"></i> Cameras</a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-chart-line"></i> Analytics</a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-gear"></i> Settings</a>
+      </nav>
+      <div class="system-status">
+        <div class="status-indicator"></div>
+        <span>System Online</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-header">
+        <div class="header-title">
+          <h1>Real-time Monitoring</h1>
+          <p class="subtitle">AI-Powered Dump Truck Detection</p>
+        </div>
+        <div class="header-actions">
+          <div class="stat-card">
+            <i class="fa-solid fa-truck-ramp-box stat-icon"></i>
+            <div class="stat-info">
+              <span class="stat-label">Total Dumps Today</span>
+              <span class="stat-value" id="total-dumps">0</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="dashboard-grid">
+        <!-- Camera Feeds -->
+        <section class="video-section">
+          <div class="section-header">
+            <h2><i class="fa-solid fa-camera"></i> Live Camera Feeds</h2>
+            <div class="live-badge">LIVE</div>
+          </div>
+          <div class="camera-grid" id="camera-container">
+            <!-- Camera feeds will be injected here via JS -->
+            <div class="loading-cameras">
+              <i class="fa-solid fa-circle-notch fa-spin"></i>
+              <p>Loading camera feeds...</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- System Logs -->
+        <section class="log-section">
+          <div class="section-header">
+            <h2><i class="fa-solid fa-terminal"></i> Activity Log</h2>
+            <button class="icon-btn" id="refresh-logs" title="Refresh Logs"><i class="fa-solid fa-rotate-right"></i></button>
+          </div>
+          <div class="log-container" id="log-container">
+            <div class="loading-logs">
+              <i class="fa-solid fa-circle-notch fa-spin"></i>
+              <p>Loading logs...</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  
+  <script src="script.js"></script>
+</body>
+</html>
