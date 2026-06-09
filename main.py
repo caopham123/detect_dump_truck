@@ -1,4 +1,14 @@
 # main.py
+import torch
+
+# Fix for PyTorch 2.6 weights_only=True default causing UnpicklingError in Ultralytics 8.2.0
+_original_load = torch.load
+def _patched_load(*args, **kwargs):
+  if 'weights_only' not in kwargs:
+    kwargs['weights_only'] = False
+  return _original_load(*args, **kwargs)
+torch.load = _patched_load
+
 import cv2
 from ultralytics import YOLO
 from config.settings import MODEL_PATH, CAMERAS, CONF_THRESHOLD
@@ -25,6 +35,11 @@ def main():
     pipeline = Inference(cam_config, cam_model, conf=CONF_THRESHOLD)
     pipelines.append(pipeline)
       
+  # Start web server
+  from web_app import start_web_app
+  start_web_app(pipelines)
+  logger.info("Khởi chạy máy chủ Web tại http://localhost:5000")
+  
   logger.info("Hệ thống đã sẵn sàng xử lý. Nhấn phím 'ESC' tại cửa sổ để dừng chương trình.")
   
   try:

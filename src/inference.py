@@ -37,6 +37,7 @@ class Inference:
     self.tracker_voting = TrackerVoting()  # Initialize the tracker voting system
     self.frame_count = 0  # Counter to keep track of the number of frames processed
     self.latest_tracks = []  # Store the latest tracks detected in the current frame
+    self.latest_frame_processed = None # Store the latest processed frame for web streaming
     
     # Draw polygon on window
     self.window_name = f'Camera {self.camera_id} - Counting'
@@ -204,6 +205,7 @@ class Inference:
         cv2.rectangle(frame_resized, (tx1, ty1), (tx2, ty2), color, 2)
         cv2.putText(frame_resized, label, (tx1, max(10, ty1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
+      self.latest_frame_processed = frame_resized.copy()
       cv2.imshow(self.window_name, frame_resized)
     return True
   
