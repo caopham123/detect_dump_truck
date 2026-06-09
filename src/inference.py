@@ -80,12 +80,45 @@ class Inference:
         self.roi_polygons[poly_idx][pt_idx][0] = [x, y]
             
     elif event == cv2.EVENT_LBUTTONUP:
-      # Stop dragging and print the new coordinates
+      # Stop dragging and save the new coordinates
       if self.dragging_point is not None:
-        logger.info(f"{self.camera_id} - New ROI Polygons updated! Copy this to constants.yaml:")
-        logger.info("roi_polygons:")
-        for poly in self.roi_polygons:
-          logger.info(f"  - {poly.reshape(-1, 2).tolist()}")
+        new_polys_list = [poly.reshape(-1, 2).tolist() for poly in self.roi_polygons]
+        logger.info(f"{self.camera_id} - New ROI Polygons updated! Saving to constants.yaml...")
+        
+        try:
+          yaml_path = "config/constants.yaml"
+          with open(yaml_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            
+          in_camera = False
+          new_lines = []
+          i = 0
+          while i < len(lines):
+            line = lines[i]
+            if line.strip().startswith("- camera_id:") and self.camera_id in line:
+              in_camera = True
+            elif line.strip().startswith("- camera_id:") and self.camera_id not in line:
+              in_camera = False
+            
+            if in_camera and line.strip().startswith("roi_polygons:"):
+              new_lines.append(line)
+              for poly in new_polys_list:
+                new_lines.append(f"      - {poly}\n")
+              i += 1
+              # Skip over the existing polygon list lines
+              while i < len(lines) and lines[i].strip().startswith("-"):
+                i += 1
+              continue
+              
+            new_lines.append(line)
+            i += 1
+            
+          with open(yaml_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+          logger.info(f"Successfully saved {self.camera_id} ROIs to constants.yaml!")
+        except Exception as e:
+          logger.error(f"Failed to save to constants.yaml: {e}")
+          
         self.dragging_point = None
     
   def process_frame(self):
