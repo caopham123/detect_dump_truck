@@ -1,13 +1,13 @@
 import cv2
 import time
+import uvicorn
+import os
+import threading
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-import uvicorn
-from config.settings import LOG_DIR
+from config.settings import LOG_DIR, CAMERAS
 from datetime import datetime
-import os
-import threading
 
 app = FastAPI()
 
@@ -31,7 +31,18 @@ async def script():
 
 @app.get("/api/cameras")
 async def get_cameras():
-  cameras = [{'id': p.camera_id, 'dumps': p.tracker_voting.total_dumps} for p in pipelines_ref]
+  cameras = []
+  for cam_config in CAMERAS:
+    cam_id = cam_config.get("camera_id", "Unknown")
+    pipeline = next((p for p in pipelines_ref if p.camera_id == cam_id), None)
+
+    cameras.append({
+      "id": cam_id,
+      "status": 'active' if pipeline else 'offline',
+      "dumps": (
+        pipeline.tracker_voting.total_dumps if pipeline else 0
+      )
+    })
   return JSONResponse(content=cameras)
 
 def generate_frames(camera_id: str):
