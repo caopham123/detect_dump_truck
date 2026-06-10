@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
   <!-- FontAwesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
   <div class="app-container">
     <!-- Sidebar Navigation -->
@@ -31,7 +33,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-      <header class="top-header">
+      <header class="top-header" style="display: none;">
         <div class="header-title">
           <h1>Real-time Monitoring</h1>
           <p class="subtitle">AI-Powered Dump Truck Detection</p>
@@ -67,7 +69,8 @@
         <section class="log-section">
           <div class="section-header">
             <h2><i class="fa-solid fa-terminal"></i> Activity Log</h2>
-            <button class="icon-btn" id="refresh-logs" title="Refresh Logs"><i class="fa-solid fa-rotate-right"></i></button>
+            <button class="icon-btn" id="refresh-logs" title="Refresh Logs"><i
+                class="fa-solid fa-rotate-right"></i></button>
           </div>
           <div class="log-container" id="log-container">
             <div class="loading-logs">
@@ -79,7 +82,8 @@
       </div>
     </main>
   </div>
-  
+
   <script src="script.js"></script>
 </body>
+
 </html>

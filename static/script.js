@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const response = await fetch('/api/cameras');
       const cameras = await response.json();
-      
+
       if (cameras.length === 0) {
         cameraContainer.innerHTML = '<div class="loading-cameras"><p>No cameras configured or active.</p></div>';
         return;
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       cameras.forEach(cam => {
         totalDumps += cam.dumps;
-        
+
         const camCard = document.createElement('div');
         camCard.className = 'camera-card';
         camCard.innerHTML = `
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         cameraContainer.appendChild(camCard);
       });
-      
+
       totalDumpsEl.textContent = totalDumps;
     } catch (error) {
       console.error('Error fetching cameras:', error);
@@ -53,27 +53,27 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const response = await fetch('/api/logs');
       const data = await response.json();
-      
+
       if (!data.logs || data.logs.length === 0) {
         logContainer.innerHTML = '<div class="loading-logs"><p>No logs available for today.</p></div>';
         return;
       }
 
       logContainer.innerHTML = '';
-      
+
       data.logs.forEach(logLine => {
         // Parse log line: "2026-06-09 09:15:52 | [INFO] | Message..."
         const match = logLine.match(/^(.*?)\s\|\s\[(.*?)\]\s\|\s(.*)$/);
-        
+
         const entryDiv = document.createElement('div');
-        
+
         if (match) {
           const [_, time, level, msg] = match;
           entryDiv.className = `log-entry ${level.toLowerCase()}`;
-          
+
           // Extract time component from datetime string
           const timeOnly = time.split(' ')[1] || time;
-          
+
           entryDiv.innerHTML = `
             <span class="log-time">${timeOnly}</span>
             <span class="log-level">[${level}]</span>
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
           entryDiv.className = 'log-entry';
           entryDiv.textContent = logLine;
         }
-        
+
         logContainer.appendChild(entryDiv);
       });
     } catch (error) {
