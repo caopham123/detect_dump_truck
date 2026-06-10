@@ -17,27 +17,34 @@
     <aside class="sidebar">
       <div class="brand">
         <i class="fa-solid fa-truck-monster brand-icon"></i>
-        <h2>TruckVision</h2>
+        <h2 class="nav-text">TruckVision</h2>
       </div>
       <nav class="nav-menu">
-        <a href="#" class="nav-item active"><i class="fa-solid fa-border-all"></i> Dashboard</a>
-        <a href="#" class="nav-item"><i class="fa-solid fa-video"></i> Cameras</a>
-        <a href="#" class="nav-item"><i class="fa-solid fa-chart-line"></i> Analytics</a>
-        <a href="#" class="nav-item"><i class="fa-solid fa-gear"></i> Settings</a>
+        <a href="#" class="nav-item active"><i class="fa-solid fa-border-all"></i> <span
+            class="nav-text">Dashboard</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-video"></i> <span class="nav-text">Cameras</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span class="nav-text">Analytics</span></a>
+        <a href="#" class="nav-item"><i class="fa-solid fa-gear"></i> <span class="nav-text">Settings</span></a>
       </nav>
       <div class="system-status">
         <div class="status-indicator"></div>
-        <span>System Online</span>
+        <span class="nav-text">System Online</span>
       </div>
     </aside>
 
     <!-- Main Content -->
     <main class="main-content">
-      <header class="top-header" style="display: none;">
+      <header class="top-header">
         <div class="header-title">
           <h1>Real-time Monitoring</h1>
           <p class="subtitle">AI-Powered Dump Truck Detection</p>
         </div>
+        <nav class="header-menu">
+          <a href="#" class="header-nav-item active">Dashboard</a>
+          <a href="#" class="header-nav-item">Cameras</a>
+          <a href="#" class="header-nav-item">Analytics</a>
+          <a href="#" class="header-nav-item">Settings</a>
+        </nav>
         <div class="header-actions">
           <div class="stat-card">
             <i class="fa-solid fa-truck-ramp-box stat-icon"></i>
@@ -52,7 +59,7 @@
       <div class="dashboard-grid">
         <!-- Camera Feeds -->
         <section class="video-section">
-          <div class="section-header">
+          <div class="section-header" style="display: none;">
             <h2><i class="fa-solid fa-camera"></i> Live Camera Feeds</h2>
             <div class="live-badge">LIVE</div>
           </div>
