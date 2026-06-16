@@ -1,11 +1,15 @@
 import cv2, os
 import numpy as np
-from datetime import datetime,date
+from datetime import datetime, date
+import time
 from config.settings import DISPLAY_RESIZE, CLASS_COLORS, CLASS_LABELS, DISPLAY_SKIP, PROCESS_SKIP, CONF_THRESHOLD, SNAPSHOT_DIR, TRACK_BUFFER
 from src.tracker_voting import TrackerVoting
 from src.camera_stream import CameraStream
 from utils.logger import logger
 from ultralytics.trackers.basetrack import BaseTrack
+
+class SkipCameraError(Exception):
+  """Raised when a camera cannot connect on the first attempt; signals to skip this camera."""
 
 class Inference:
   def __init__(self, cameras, model_instance, conf):
@@ -13,7 +17,7 @@ class Inference:
     self.rtsp_url = cameras.get('rtsp_url', 'unknown')
     self.confidence = conf
 
-    # Create tracker config file to sync TRACK_BUFFER (riêng biệt cho từng camera)
+    ''' Create tracker config file to sync TRACK_BUFFER (riêng biệt cho từng camera)    '''
     self.tracker_yaml_path = f"config/custom_tracker_{self.camera_id}.yaml"
     with open(self.tracker_yaml_path, "w", encoding="utf-8") as f:
       f.write("tracker_type: bytetrack\n")
@@ -32,12 +36,18 @@ class Inference:
     elif 'roi_polygon' in cameras: # Fallback to old format
       self.roi_polygons.append(np.array(cameras['roi_polygon'], dtype=np.int32).reshape((-1, 1, 2)))
     
-    self.reader = CameraStream(self.camera_id, self.rtsp_url).start()  # Start the camera stream in a separate thread
+    # Connect Probe() first — if failed, raise SkipCameraError immediately to avoid blocking the entire pipeline with a bad camera stream
+    stream = CameraStream(self.camera_id, self.rtsp_url)
+    if not stream.probe(timeout_sec=5):
+      logger.warning(f"{self.camera_id} - Không kết nối được ngay từ đầu. Bỏ qua camera này.")
+      raise SkipCameraError(self.camera_id)
+    self.reader = stream.start()  # Start the camera stream in a separate thread
     self.model = model_instance  # Load the YOLO model instance
     self.tracker_voting = TrackerVoting()  # Initialize the tracker voting system
     self.frame_count = 0  # Counter to keep track of the number of frames processed
     self.latest_tracks = []  # Store the latest tracks detected in the current frame
     self.latest_frame_processed = None # Store the latest processed frame for web streaming
+    self.last_time_no_frame = time.time()  # Time when no frame was received
     
     # Draw polygon on window
     self.window_name = f'Camera {self.camera_id} - Counting'
@@ -125,8 +135,10 @@ class Inference:
     ''' Read a frame from the camera stream, run inference, update tracker voting, 
     and return the processed frame with detections and alerts. '''
     ret, frame = self.reader.read()       # Get the latest frame written from the camera stream
-    if ret is False or frame is None:
-      logger.warning(f"{self.camera_id} - No frame received from camera stream.")
+    if not ret or frame is None:
+      if time.time() - self.last_time_no_frame > 60:
+        self.last_time_no_frame = time.time()
+        logger.error(f"{self.camera_id} - No frame received from camera stream!!!")
       return True     # lần đầu ko có frame vẫn tiếp tục
       
     # Kiểm tra nếu người dùng bấm dấu X để tắt cửa sổ của camera này
