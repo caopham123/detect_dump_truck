@@ -16,7 +16,7 @@ f_handler = DailyFileHandler()
 f_handler.setLevel(logging.INFO)
 
 # Create formatters and add it to handlers
-log_format = logging.Formatter("%(asctime)s | [%(levelname)s] | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+log_format = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 c_handler.setFormatter(log_format)
 f_handler.setFormatter(log_format)
 
