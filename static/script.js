@@ -10,32 +10,33 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await fetch('/api/cameras');
       const cameras = await response.json();
 
-      if (cameras.length === 0) {
-        cameraContainer.innerHTML = '<div class="loading-cameras"><p>No cameras configured or active.</p></div>';
+      // If empty API response, keep existing cards (could be a temporary backend issue), don't clear the UI
+      if (!Array.isArray(cameras) || cameras.length === 0) {
         return;
       }
 
-      // Remove loading indicator if present
+      // When API response returns an empty array but there are existing cards, keep them (backend might be temporarily down).
       const loadingEl = cameraContainer.querySelector('.loading-cameras');
-      if (loadingEl) {
+      if (loadingEl && cameraContainer.querySelectorAll('[data-cam-id]').length === 0) {
         cameraContainer.innerHTML = '';
       }
 
       let totalDumps = 0;
 
-      // Track existing cameras to remove ones that disappeared
+      // Don't remove old cards — always keep enough camera slots even if offline
       const currentCamIds = cameras.map(c => c.id);
-      Array.from(cameraContainer.children).forEach(child => {
-        if (child.dataset.camId && !currentCamIds.includes(child.dataset.camId)) {
-          child.remove();
+      Array.from(cameraContainer.querySelectorAll('[data-cam-id]')).forEach(child => {
+        if (!currentCamIds.includes(child.dataset.camId)) {
+          child.remove(); // Camera bị xóa khỏi config.yaml thì mới xóa card
         }
       });
 
       cameras.forEach(cam => {
         totalDumps += cam.dumps;
+        const isOnline = cam.status === 'active';
 
         let camCard = cameraContainer.querySelector(`[data-cam-id="${cam.id}"]`);
-        
+
         if (!camCard) {
           camCard = document.createElement('div');
           camCard.className = 'camera-card';
@@ -45,10 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="camera-title">
                 <i class="fa-solid fa-video"></i> ${cam.id}
               </div>
-              <div class="camera-status">Active</div>
+              <div class="camera-status" id="status-${cam.id}">Offline</div>
             </div>
             <div class="camera-feed">
-              <img src="/video_feed/${cam.id}" alt="Feed ${cam.id}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iI2ZmZiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+U2lnbmFsIExvc3Q8L3RleHQ+PC9zdmc+'">
+              <img src="/video_feed/${cam.id}" alt="Feed ${cam.id}">
               <div class="camera-overlay">
                 <span class="cam-badge"><i class="fa-solid fa-layer-group"></i> Default ROI</span>
                 <span class="cam-badge cam-dumps" id="dumps-${cam.id}"><i class="fa-solid fa-truck"></i> ${cam.dumps} Dumps</span>
@@ -56,19 +57,27 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           `;
           cameraContainer.appendChild(camCard);
-        } else {
-          // Just update the dynamic values without recreating DOM
-          const dumpBadge = camCard.querySelector(`#dumps-${cam.id}`);
-          if (dumpBadge) {
-            dumpBadge.innerHTML = `<i class="fa-solid fa-truck"></i> ${cam.dumps} Dumps`;
-          }
+        }
+
+        // Update status each time we poll (for both new and existing cards)
+        const statusBadge = camCard.querySelector(`#status-${cam.id}`);
+        if (statusBadge) {
+          statusBadge.textContent = isOnline ? 'Active' : 'Offline';
+          statusBadge.className = isOnline ? 'camera-status' : 'camera-status offline';
+        }
+        camCard.classList.toggle('offline', !isOnline);
+
+        const dumpBadge = camCard.querySelector(`#dumps-${cam.id}`);
+        if (dumpBadge) {
+          dumpBadge.innerHTML = `<i class="fa-solid fa-truck"></i> ${cam.dumps} Dumps`;
         }
       });
 
       totalDumpsEl.textContent = totalDumps;
     } catch (error) {
-      console.error('Error fetching cameras:', error);
-      cameraContainer.innerHTML = '<div class="loading-cameras"><p>Error connecting to server.</p></div>';
+      // Interrupted connection — don't clear the UI, just show error in console and retry on next interval
+      console.error('Camera fetch failed, retrying...', error);
+
     }
   }
 
