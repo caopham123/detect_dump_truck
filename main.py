@@ -12,7 +12,7 @@ torch.load = _patched_load
 import cv2
 from ultralytics import YOLO
 from config.settings import MODEL_PATH, CAMERAS, CONF_THRESHOLD
-from src.inference import Inference
+from src.inference import Inference, SkipCameraError
 from utils.logger import logger
 
 def main():
@@ -27,45 +27,45 @@ def main():
     logger.error("Không tìm thấy luồng camera nào được cấu hình trong tệp settings.")
     return
 
-  # Load separate model for each camera pipeline
-  for cam_config in CAMERAS:
-    cam_id = cam_config.get("camera_id", "Unknown")
-    logger.info(f"Đang khởi tạo luồng xử lý: {cam_id}")
-    cam_model = YOLO(MODEL_PATH)
-    pipeline = Inference(cam_config, cam_model, conf=CONF_THRESHOLD)
-    pipelines.append(pipeline)
-      
   # Start web server
   from web_app import start_web_app
   start_web_app(pipelines)
   logger.info("Khởi chạy máy chủ Web tại http://localhost:5000")
   
+  # Load separate model for each camera pipeline
+  for cam_config in CAMERAS:
+    cam_id = cam_config.get("camera_id", "Unknown")
+    logger.info(f"Đang khởi tạo luồng xử lý: {cam_id}")
+    cam_model = YOLO(MODEL_PATH)
+    try:
+      pipeline = Inference(cam_config, cam_model, conf=CONF_THRESHOLD)
+      pipelines.append(pipeline)
+    except SkipCameraError:
+      logger.warning(f"Camera {cam_id} - Bỏ qua camera do không thể kết nối lần đầu. Tiếp tục các camera khác.")
+      continue
   logger.info("Hệ thống đã sẵn sàng xử lý. Nhấn phím 'ESC' tại cửa sổ để dừng chương trình.")
   
   try:
     while pipelines:
-      # Duyệt qua bản sao của list (pipelines[:]) để có thể xoá phần tử an toàn
       for pipeline in pipelines[:]:
         status = pipeline.process_frame()
-        
-        # Nếu hàm trả về False (Mất kết nối hoặc người dùng bấm X tắt cửa sổ)
+        # When return False (Camera lost connection or user closed window)
         if status is False:
           pipeline.close()
           pipelines.remove(pipeline)
           logger.info(f"Đã dừng luồng camera: {pipeline.camera_id}. Các luồng khác vẫn tiếp tục.")
           
-      # Kiểm tra ngắt từ bàn phím (Bấm ESC để thoát TOÀN BỘ)
+      # Press ESC to exit ALL
       if cv2.waitKey(1) == 27:
         break
   except KeyboardInterrupt:
-    logger.info("Đang tắt hệ thống nhận diện...")
+    logger.info("... Đang tắt hệ thống nhận diện ...")
   finally:
-    # Giải phóng tài nguyên camera an toàn
+    # Releasing camera resources safely
     for pipeline in pipelines:
       pipeline.close()
     cv2.destroyAllWindows()
-    logger.info("Hệ thống đã dừng an toàn.")
+    logger.info("====== Hệ thống đã dừng an toàn ======")
 
 if __name__ == "__main__":
   main()
-  # print("Model path:", MODEL_PATH)
