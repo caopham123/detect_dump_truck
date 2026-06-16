@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import time
 import uvicorn
 import os
@@ -45,24 +46,45 @@ async def get_cameras():
     })
   return JSONResponse(content=cameras)
 
+def _make_offline_frame():
+  """Tạo JPEG placeholder khi camera offline."""
+  img = np.zeros((360, 480, 3), dtype=np.uint8)
+  # Draw background within grid
+  for y in range(0, 360, 20):
+    cv2.line(img, (0, y), (480, y), (20, 20, 20), 1)
+  for x in range(0, 480, 20):
+    cv2.line(img, (x, 0), (x, 360), (20, 20, 20), 1)
+  # Icon
+  cv2.rectangle(img, (200, 140), (280, 220), (60, 60, 60), 2)
+  cv2.line(img, (200, 140), (280, 220), (80, 80, 80), 2)
+  cv2.line(img, (280, 140), (200, 220), (80, 80, 80), 2)
+  # Text
+  cv2.putText(img, 'SIGNAL LOST', (145, 260),
+              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (120, 120, 120), 2)
+  cv2.putText(img, 'Camera Disconnected', (125, 290),
+              cv2.FONT_HERSHEY_SIMPLEX, 0.45, (70, 70, 70), 1)
+  ret, buffer = cv2.imencode('.jpg', img)
+  return buffer.tobytes() if ret else b''
+
 def generate_frames(camera_id: str):
-  pipeline = None
-  for p in pipelines_ref:
-    if p.camera_id == camera_id:
-      pipeline = p
-      break
-      
-  if not pipeline:
-    return
-      
+  offline_frame = _make_offline_frame()
+
   while True:
-    if pipeline.latest_frame_processed is not None:
+    pipeline = next((p for p in pipelines_ref if p.camera_id == camera_id), None)
+
+    if pipeline and pipeline.latest_frame_processed is not None:
       ret, buffer = cv2.imencode('.jpg', pipeline.latest_frame_processed)
       if ret:
         frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-    time.sleep(0.05) # ~20fps
+        time.sleep(0.05)  # ~20fps
+        continue
+
+    # Camera offline or without frames, serve placeholder
+    yield (b'--frame\r\n'
+           b'Content-Type: image/jpeg\r\n\r\n' + offline_frame + b'\r\n')
+    time.sleep(1.0)
 
 @app.get("/video_feed/{camera_id}")
 async def video_feed(camera_id: str):
